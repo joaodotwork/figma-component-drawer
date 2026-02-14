@@ -251,6 +251,19 @@ function parseEffect(effect) {
       radius: d(effect.blur, 8),
       spread: d(effect.spread, 0),
       visible: true,
+      blendMode: d(effect.blendMode, 'NORMAL'),
+    };
+  }
+  if (effect.type === 'innerShadow') {
+    var innerRgb = hexToRgb(effect.color || '#000000');
+    return {
+      type: 'INNER_SHADOW',
+      color: { r: innerRgb.r, g: innerRgb.g, b: innerRgb.b, a: d(effect.opacity, 0.25) },
+      offset: { x: d(effect.x, 0), y: d(effect.y, 4) },
+      radius: d(effect.blur, 8),
+      spread: d(effect.spread, 0),
+      visible: true,
+      blendMode: d(effect.blendMode, 'NORMAL'),
     };
   }
   if (effect.type === 'blur') {
@@ -260,7 +273,15 @@ function parseEffect(effect) {
       visible: true,
     };
   }
-  return { type: 'DROP_SHADOW', color: { r: 0, g: 0, b: 0, a: 0.25 }, offset: { x: 0, y: 4 }, radius: 8, spread: 0, visible: true };
+  return {
+    type: 'DROP_SHADOW',
+    color: { r: 0, g: 0, b: 0, a: 0.25 },
+    offset: { x: 0, y: 4 },
+    radius: 8,
+    spread: 0,
+    visible: true,
+    blendMode: 'NORMAL',
+  };
 }
 
 function hexToRgb(hex) {
