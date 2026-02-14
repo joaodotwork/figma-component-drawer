@@ -176,22 +176,27 @@ async function drawText(spec) {
   var node = figma.createText();
   if (spec.name) node.name = spec.name;
 
-  // Load font before setting characters
   var family = spec.fontFamily || 'Inter';
   var style = spec.fontStyle || 'Regular';
-  await figma.loadFontAsync({ family: family, style: style });
 
+  // Resolve target style — fontWeight overrides fontStyle
+  if (spec.fontWeight) {
+    var weightStyles = { 400: 'Regular', 500: 'Medium', 600: 'Semi Bold', 700: 'Bold' };
+    style = weightStyles[spec.fontWeight] || style;
+  }
+
+  // Always load the default font first (node starts with "Inter Regular")
+  await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
+
+  // Load the target font if different from default
+  if (family !== 'Inter' || style !== 'Regular') {
+    await figma.loadFontAsync({ family: family, style: style });
+  }
+
+  // Set font BEFORE characters (characters require current font to be loaded)
+  node.fontName = { family: family, style: style };
   node.characters = spec.characters || '';
   node.fontSize = spec.fontSize || 16;
-
-  if (spec.fontWeight) {
-    // Font weight is set via style name in Figma
-    // Common mappings: 400=Regular, 500=Medium, 600=SemiBold, 700=Bold
-    var weightStyles = { 400: 'Regular', 500: 'Medium', 600: 'Semi Bold', 700: 'Bold' };
-    var styleName = weightStyles[spec.fontWeight] || style;
-    await figma.loadFontAsync({ family: family, style: styleName });
-    node.fontName = { family: family, style: styleName };
-  }
 
   if (spec.lineHeight !== undefined) {
     node.lineHeight = typeof spec.lineHeight === 'number'
