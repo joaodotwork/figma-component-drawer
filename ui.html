@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      font-size: 12px;
+      color: #333;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      height: 100vh;
+    }
+    h2 { font-size: 14px; font-weight: 600; }
+    .tabs {
+      display: flex;
+      gap: 2px;
+      background: #f0f0f0;
+      border-radius: 6px;
+      padding: 2px;
+    }
+    .tab {
+      flex: 1;
+      padding: 6px 12px;
+      border: none;
+      background: transparent;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      color: #666;
+    }
+    .tab.active {
+      background: white;
+      color: #333;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    }
+    .panel { display: none; flex-direction: column; gap: 8px; flex: 1; min-height: 0; }
+    .panel.active { display: flex; }
+    textarea {
+      flex: 1;
+      min-height: 120px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      resize: none;
+      outline: none;
+    }
+    textarea:focus { border-color: #1580b0; }
+    button.primary {
+      padding: 8px 16px;
+      background: #1580b0;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    button.primary:hover { background: #10628c; }
+    button.secondary {
+      padding: 8px 16px;
+      background: #f0f0f0;
+      color: #333;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    button.secondary:hover { background: #e0e0e0; }
+    .actions { display: flex; gap: 8px; }
+    .status {
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      display: none;
+    }
+    .status.success { display: block; background: #e8f5e9; color: #2d6a4f; }
+    .status.error { display: block; background: #fce4ec; color: #c1292e; }
+    .examples { font-size: 11px; color: #888; }
+    .examples a {
+      color: #1580b0;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .examples a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <h2>Component Drawer</h2>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="draw">Draw</button>
+    <button class="tab" data-tab="export">Export</button>
+  </div>
+
+  <!-- DRAW TAB -->
+  <div class="panel active" id="panel-draw">
+    <div class="examples">
+      Load example:
+      <a onclick="loadExample('button')">Button</a> ·
+      <a onclick="loadExample('card')">Card</a> ·
+      <a onclick="loadExample('input')">Input</a>
+    </div>
+    <textarea id="spec-input" spellcheck="false" placeholder="Paste component JSON spec..."></textarea>
+    <div class="actions">
+      <button class="primary" onclick="drawComponent()">Draw Component</button>
+    </div>
+  </div>
+
+  <!-- EXPORT TAB -->
+  <div class="panel" id="panel-export">
+    <p style="color: #666;">Select a component or frame in Figma, then click Export to get its JSON spec.</p>
+    <textarea id="export-output" spellcheck="false" readonly placeholder="Exported spec will appear here..."></textarea>
+    <div class="actions">
+      <button class="primary" onclick="exportSelected()">Export Selected</button>
+      <button class="secondary" onclick="copyExport()">Copy</button>
+    </div>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <script>
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+      });
+    });
+
+    // Draw
+    function drawComponent() {
+      const raw = document.getElementById('spec-input').value;
+      try {
+        const spec = JSON.parse(raw);
+        parent.postMessage({ pluginMessage: { type: 'draw-component', spec } }, '*');
+      } catch (e) {
+        showStatus('error', 'Invalid JSON: ' + e.message);
+      }
+    }
+
+    // Export
+    function exportSelected() {
+      parent.postMessage({ pluginMessage: { type: 'export-selected' } }, '*');
+    }
+
+    function copyExport() {
+      const el = document.getElementById('export-output');
+      navigator.clipboard.writeText(el.value);
+      showStatus('success', 'Copied to clipboard');
+    }
+
+    // Messages from plugin
+    window.onmessage = (event) => {
+      const msg = event.data.pluginMessage;
+      if (!msg) return;
+      if (msg.type === 'success') {
+        showStatus('success', 'Created: ' + msg.name);
+      }
+      if (msg.type === 'error') {
+        showStatus('error', msg.message);
+      }
+      if (msg.type === 'exported') {
+        document.getElementById('export-output').value = JSON.stringify(msg.spec, null, 2);
+        showStatus('success', 'Exported: ' + msg.spec.name);
+      }
+    };
+
+    function showStatus(type, text) {
+      const el = document.getElementById('status');
+      el.className = 'status ' + type;
+      el.textContent = text;
+      setTimeout(() => { el.className = 'status'; }, 4000);
+    }
+
+    // Example specs
+    const EXAMPLES = {
+      button: {
+        type: "component",
+        name: "Button",
+        layout: "horizontal",
+        primaryAxisAlign: "CENTER",
+        counterAxisAlign: "CENTER",
+        padding: { top: 12, right: 24, bottom: 12, left: 24 },
+        gap: 8,
+        cornerRadius: 8,
+        fills: [{ type: "solid", color: "#1580b0" }],
+        children: [
+          {
+            type: "text",
+            name: "Label",
+            characters: "Click me",
+            fontSize: 14,
+            fontFamily: "Inter",
+            fontStyle: "Medium",
+            fills: [{ type: "solid", color: "#ffffff" }]
+          }
+        ],
+        variables: {
+          "fills": "interactive/default",
+          "paddingTop": "space/3",
+          "paddingBottom": "space/3",
+          "paddingLeft": "space/6",
+          "paddingRight": "space/6",
+          "itemSpacing": "space/2",
+          "cornerRadius": "space/2"
+        }
+      },
+      card: {
+        type: "component",
+        name: "Card",
+        layout: "vertical",
+        padding: { top: 24, right: 24, bottom: 24, left: 24 },
+        gap: 16,
+        cornerRadius: 12,
+        fills: [{ type: "solid", color: "#ffffff" }],
+        effects: [
+          { type: "dropShadow", color: "#000000", opacity: 0.08, x: 0, y: 4, blur: 16, spread: 0 }
+        ],
+        children: [
+          {
+            type: "text",
+            name: "Title",
+            characters: "Card Title",
+            fontSize: 18,
+            fontFamily: "Inter",
+            fontStyle: "Semi Bold",
+            fills: [{ type: "solid", color: "#051828" }]
+          },
+          {
+            type: "text",
+            name: "Description",
+            characters: "A brief description of the card content goes here.",
+            fontSize: 14,
+            fontFamily: "Inter",
+            fills: [{ type: "solid", color: "#10628c" }]
+          },
+          {
+            type: "frame",
+            name: "Actions",
+            layout: "horizontal",
+            gap: 8,
+            children: [
+              {
+                type: "frame",
+                name: "Primary Button",
+                layout: "horizontal",
+                primaryAxisAlign: "CENTER",
+                counterAxisAlign: "CENTER",
+                padding: { top: 8, right: 16, bottom: 8, left: 16 },
+                cornerRadius: 6,
+                fills: [{ type: "solid", color: "#1580b0" }],
+                children: [
+                  { type: "text", characters: "Action", fontSize: 12, fontFamily: "Inter", fontStyle: "Medium", fills: [{ type: "solid", color: "#ffffff" }] }
+                ]
+              },
+              {
+                type: "frame",
+                name: "Secondary Button",
+                layout: "horizontal",
+                primaryAxisAlign: "CENTER",
+                counterAxisAlign: "CENTER",
+                padding: { top: 8, right: 16, bottom: 8, left: 16 },
+                cornerRadius: 6,
+                fills: [{ type: "solid", color: "#e0f4fc" }],
+                children: [
+                  { type: "text", characters: "Cancel", fontSize: 12, fontFamily: "Inter", fontStyle: "Medium", fills: [{ type: "solid", color: "#1580b0" }] }
+                ]
+              }
+            ]
+          }
+        ],
+        variables: {
+          "fills": "surface/elevated",
+          "paddingTop": "space/6",
+          "paddingRight": "space/6",
+          "paddingBottom": "space/6",
+          "paddingLeft": "space/6",
+          "itemSpacing": "space/4"
+        }
+      },
+      input: {
+        type: "component",
+        name: "Text Input",
+        layout: "vertical",
+        gap: 6,
+        children: [
+          {
+            type: "text",
+            name: "Label",
+            characters: "Email address",
+            fontSize: 12,
+            fontFamily: "Inter",
+            fontStyle: "Medium",
+            fills: [{ type: "solid", color: "#051828" }]
+          },
+          {
+            type: "frame",
+            name: "Field",
+            layout: "horizontal",
+            counterAxisAlign: "CENTER",
+            padding: { top: 10, right: 12, bottom: 10, left: 12 },
+            cornerRadius: 6,
+            fills: [{ type: "solid", color: "#ffffff" }],
+            strokes: [{ type: "solid", color: "#80d4f2" }],
+            strokeWeight: 1,
+            children: [
+              {
+                type: "text",
+                name: "Placeholder",
+                characters: "you@example.com",
+                fontSize: 14,
+                fontFamily: "Inter",
+                fills: [{ type: "solid", color: "#4db9e3" }]
+              }
+            ]
+          },
+          {
+            type: "text",
+            name: "Hint",
+            characters: "We'll never share your email.",
+            fontSize: 11,
+            fontFamily: "Inter",
+            fills: [{ type: "solid", color: "#1a9fd4" }]
+          }
+        ],
+        variables: {
+          "itemSpacing": "space/1"
+        }
+      }
+    };
+
+    function loadExample(name) {
+      document.getElementById('spec-input').value = JSON.stringify(EXAMPLES[name], null, 2);
+    }
+
+    // Load button example by default
+    loadExample('button');
+  </script>
+</body>
+</html>
